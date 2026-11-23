@@ -13,6 +13,7 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.navigation.fragment.findNavController
 import com.rfidsoftwares.R
+import com.rfidsoftwares.data.frappe.FrappeSessionStore
 import com.rfidsoftwares.ui.base.BaseScreenFragment
 
 class SplashFragment : BaseScreenFragment() {
@@ -29,9 +30,13 @@ class SplashFragment : BaseScreenFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        val loggedIn = FrappeSessionStore(requireContext()).session() != null
         handler.postDelayed(
             {
-                findNavController().navigate(R.id.action_splash_to_modeSelectorFragment)
+                // The app opens only for a logged-in user; everyone else goes to the ERP login first.
+                findNavController().navigate(
+                    if (loggedIn) R.id.action_splash_to_modeSelectorFragment else R.id.action_splash_to_erpLoginFragment
+                )
             },
             750
         )

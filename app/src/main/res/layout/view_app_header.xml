@@ -74,6 +74,19 @@
             android:src="@drawable/ic_theme_sun"
             android:tint="?attr/colorOnSurface" />
 
+        <!-- Far right. Hidden unless a screen asks for it (see BaseScreenFragment.onHeaderSettings). -->
+        <ImageButton
+            android:id="@+id/headerSettingsButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Settings"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_preferences"
+            android:tint="?attr/colorOnSurface"
+            android:visibility="gone" />
+
         <FrameLayout
             android:id="@+id/appHeaderActionSlot"
             android:layout_width="0dp"

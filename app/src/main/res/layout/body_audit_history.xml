@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="@dimen/rfid_screen_padding">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/auditHistoryList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scrollbars="vertical" />
+
+    <TextView
+        android:id="@+id/auditHistoryEmpty"
+        style="@style/TextAppearance.Rfid.HelperMetaText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="Nothing sent yet. Counts you send to the ERP are listed here."
+        android:visibility="gone" />
+</FrameLayout>

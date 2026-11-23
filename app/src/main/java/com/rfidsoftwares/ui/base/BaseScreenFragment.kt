@@ -6,6 +6,7 @@
 package com.rfidsoftwares.ui.base
 
 import android.content.Context
+import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
@@ -18,6 +19,7 @@ import android.widget.ImageButton
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.rfidsoftwares.R
 import com.rfidsoftwares.common.prefs.ThemeModePrefs
@@ -39,6 +41,15 @@ abstract class BaseScreenFragment : Fragment() {
     protected open fun handleBackNavigation() {
         findNavController().navigateUp()
     }
+
+    /** Return an action to show a settings gear at the top right of the header; null (default) hides it. */
+    protected open fun onHeaderSettings(): (() -> Unit)? = null
+
+    /**
+     * True strips the header down to the icons at the top right (theme, and settings if offered):
+     * no bar, title, online indicator, issues icon or back button. Used by the login screen.
+     */
+    protected open fun isHeaderIconsOnly(): Boolean = false
 
     abstract fun createBody(inflater: LayoutInflater, container: FrameLayout): View
 
@@ -81,6 +92,25 @@ abstract class BaseScreenFragment : Fragment() {
         }
 
         actionSlot.visibility = View.GONE
+
+        val settingsButton: ImageButton = headerView.findViewById(R.id.headerSettingsButton)
+        val settingsAction = onHeaderSettings()
+        settingsButton.visibility = if (settingsAction != null) View.VISIBLE else View.GONE
+        settingsButton.setOnClickListener { settingsAction?.invoke() }
+
+        if (isHeaderIconsOnly()) {
+            // Keep the title invisible, not gone: its weight is what pushes the icons to the right.
+            titleView.visibility = View.INVISIBLE
+            backButton.visibility = View.GONE
+            issueButton.visibility = View.GONE
+            headerView.findViewById<View>(R.id.connectivityIndicatorView).visibility = View.GONE
+            (headerView as MaterialCardView).apply {
+                setCardBackgroundColor(Color.TRANSPARENT)
+                strokeWidth = 0
+                cardElevation = 0f
+            }
+            ((headerView as ViewGroup).getChildAt(0)).background = null
+        }
 
         issueButton.setOnClickListener {
             val navController = findNavController()

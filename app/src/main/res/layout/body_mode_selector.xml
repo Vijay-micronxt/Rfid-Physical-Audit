@@ -51,6 +51,7 @@
                         android:textColor="@color/rfid_primary" />
 
                     <TextView
+                        android:id="@+id/menuUserText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
@@ -58,6 +59,14 @@
                         android:textSize="13sp"
                         android:textColor="@color/rfid_on_surface" />
                 </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnLogout"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Log out" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -132,7 +141,7 @@
             android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"
             style="@style/TextAppearance.Rfid.SectionTitle"
-            android:text="⚡ Quick Testing Tools (No Login)" />
+            android:text="⚡ Quick Testing Tools" />
 
         <GridLayout
             android:layout_width="match_parent"
@@ -391,6 +400,98 @@
             </com.google.android.material.card.MaterialCardView>
 
         </GridLayout>
+
+        <!-- Physical audit against the ERP (log in, download, scan, compare) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="8dp"
+            style="@style/TextAppearance.Rfid.SectionTitle"
+            android:text="📋 Stock Audit (ERP Login)" />
+
+        <!-- Physical Audit and the history of what was sent, side by side -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/btnPhysicalAudit"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="16dp"
+                app:cardBackgroundColor="@color/rfid_card_surface"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/rfid_card_stroke"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📋 Physical Audit"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/rfid_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Pick a warehouse, scan and compare"
+                        android:textSize="12sp"
+                        android:alpha="0.7" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/btnAuditHistory"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="16dp"
+                app:cardBackgroundColor="@color/rfid_card_surface"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/rfid_card_stroke"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🕘 Audit History"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/rfid_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Counts you sent to the ERP"
+                        android:textSize="12sp"
+                        android:alpha="0.7" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
 
         <!-- Section 2: Enterprise Inventory Engine -->
         <TextView

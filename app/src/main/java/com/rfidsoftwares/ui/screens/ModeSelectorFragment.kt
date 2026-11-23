@@ -17,6 +17,9 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.rfidsoftwares.R
 import com.rfidsoftwares.common.prefs.UhfConfigPrefs
+import com.rfidsoftwares.controller.audit.AuditHistoryStore
+import com.rfidsoftwares.data.frappe.FrappeClient
+import com.rfidsoftwares.data.frappe.FrappeSessionStore
 import com.rfidsoftwares.rfid.driver.RfidDriverFactory
 import com.rfidsoftwares.ui.base.BaseScreenFragment
 
@@ -78,6 +81,29 @@ class ModeSelectorFragment : BaseScreenFragment() {
 
         view.findViewById<MaterialCardView>(R.id.btnQuickDiagnostics).setOnClickListener {
             findNavController().navigate(R.id.action_modeSelector_to_diagnosticsFragment)
+        }
+
+        // Who is logged in, and the way out. Logging out also deletes the downloaded audit data.
+        val store = FrappeSessionStore(requireContext())
+        store.session()?.let {
+            view.findViewById<TextView>(R.id.menuUserText).text = "Logged in as ${it.user}"
+        }
+        view.findViewById<MaterialButton>(R.id.btnLogout).setOnClickListener {
+            val session = store.session()
+            store.logout()
+            AuditHistoryStore(requireContext()).clear() // the counts sent from this phone go with the login
+            // Also cancel this login's secret on the server, in the background: logging out never waits for the network.
+            if (session != null) Thread { runCatching { FrappeClient().logout(session) } }.start()
+            findNavController().navigate(R.id.action_global_erpLoginFragment)
+        }
+
+        // Physical audit against the ERP (read-only)
+        view.findViewById<MaterialCardView>(R.id.btnPhysicalAudit).setOnClickListener {
+            findNavController().navigate(R.id.action_modeSelector_to_physicalAuditFragment)
+        }
+        // The counts this user sent to the ERP, kept on the phone
+        view.findViewById<MaterialCardView>(R.id.btnAuditHistory).setOnClickListener {
+            findNavController().navigate(R.id.action_modeSelector_to_auditHistory)
         }
 
         // Enterprise Inventory Suite (Login & Sync)

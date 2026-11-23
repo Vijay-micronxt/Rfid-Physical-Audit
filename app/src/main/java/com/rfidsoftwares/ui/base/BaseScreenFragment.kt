@@ -103,7 +103,6 @@ abstract class BaseScreenFragment : Fragment() {
             titleView.visibility = View.INVISIBLE
             backButton.visibility = View.GONE
             issueButton.visibility = View.GONE
-            headerView.findViewById<View>(R.id.connectivityIndicatorView).visibility = View.GONE
             (headerView as MaterialCardView).apply {
                 setCardBackgroundColor(Color.TRANSPARENT)
                 strokeWidth = 0

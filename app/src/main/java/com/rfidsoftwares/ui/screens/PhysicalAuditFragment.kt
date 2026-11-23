@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.navigation.fragment.findNavController
@@ -11,7 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import android.widget.ArrayAdapter
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.rfidsoftwares.R
 import com.rfidsoftwares.common.prefs.UhfConfigPrefs
@@ -24,10 +25,13 @@ import com.rfidsoftwares.controller.audit.HistoryEntry
 import com.rfidsoftwares.controller.audit.PushIds
 import com.rfidsoftwares.controller.audit.WarehouseChoice
 import com.rfidsoftwares.data.frappe.AuditSnapshot
-import com.rfidsoftwares.data.frappe.WarehouseOption
 import com.rfidsoftwares.data.frappe.FrappeClient
 import com.rfidsoftwares.data.frappe.FrappeException
+import com.rfidsoftwares.data.frappe.FrappeSession
 import com.rfidsoftwares.data.frappe.FrappeSessionStore
+import com.rfidsoftwares.data.frappe.WarehouseOption
+import com.rfidsoftwares.issues.AuditIssues
+import com.rfidsoftwares.issues.IssueCategories
 import com.rfidsoftwares.rfid.driver.RfidDriverFactory
 import com.rfidsoftwares.rfid.driver.RfidReaderDriver
 import com.rfidsoftwares.ui.base.BaseScreenFragment
@@ -38,6 +42,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Physical audit: pick a warehouse (its data downloads by itself), scan with the reader and compare on
  * the phone. The ERP login is the app's own login screen. Nothing is sent to the ERP until you press
  * Send to ERP, which creates a draft Physical Audit there (no stock changes).
+ *
+ * The screen stays small: what is saved on the phone and anything that went wrong go to the warning page
+ * (the triangle in the top bar); a problem also shows as a short pop-up with a "Details" link to it.
  */
 class PhysicalAuditFragment : BaseScreenFragment() {
 
@@ -56,16 +63,16 @@ class PhysicalAuditFragment : BaseScreenFragment() {
 
     private var snapshot: AuditSnapshot? = null
     private val scanned = LinkedHashSet<String>()
+    // Bumped whenever the scans are cleared, so a read that was already under way cannot put a tag back.
+    private var scanEpoch = 0
     private var result: AuditResult? = null
 
-    private lateinit var userText: TextView
     private lateinit var warehouseInput: MaterialAutoCompleteTextView
     private var warehouseOptions: List<WarehouseOption> = emptyList()
     private var selectedWarehouse: String? = null
     // Each pick gets a number, so a slow download for an earlier pick cannot overwrite a later one.
     @Volatile private var downloadToken = 0
     private val autoDownloaded = HashSet<String>()
-    private lateinit var downloadStatus: TextView
     private lateinit var scanButton: MaterialButton
     private lateinit var sendButton: MaterialButton
     private val pushIds = PushIds()
@@ -84,9 +91,7 @@ class PhysicalAuditFragment : BaseScreenFragment() {
         if (io.isShutdown) io = Executors.newSingleThreadExecutor()
         if (scanExec.isShutdown) scanExec = Executors.newSingleThreadExecutor()
 
-        userText = view.findViewById(R.id.auditUserText)
         warehouseInput = view.findViewById(R.id.auditWarehouseInput)
-        downloadStatus = view.findViewById(R.id.auditDownloadStatus)
         scanButton = view.findViewById(R.id.auditScanButton)
         sendButton = view.findViewById(R.id.auditSendButton)
         scanStatus = view.findViewById(R.id.auditScanStatus)
@@ -106,7 +111,6 @@ class PhysicalAuditFragment : BaseScreenFragment() {
             findNavController().navigate(R.id.action_global_erpLoginFragment)
             return
         }
-        userText.text = "Logged in as ${session.user} · ${session.baseUrl}"
 
         scanButton.setOnClickListener { if (scanning.get()) stopScan() else startScan() }
         sendButton.setOnClickListener { onSendClicked() }
@@ -119,7 +123,6 @@ class PhysicalAuditFragment : BaseScreenFragment() {
         }
 
         snapshot = store.loadSnapshot()
-        snapshot?.let { downloadStatus.text = downloadedText(it) }
         // The saved list fills the dropdown at once (works offline); the server's list replaces it a moment later.
         showWarehouses(store.savedWarehouses(), prefer = snapshot?.warehouse ?: store.lastWarehouse())
         loadWarehouses(session)
@@ -149,25 +152,31 @@ class PhysicalAuditFragment : BaseScreenFragment() {
         if (snapshot?.warehouse != name) {
             // A different warehouse is a different count: the old one's data and reads do not belong to it.
             stopScan()
-            synchronized(scanned) { scanned.clear() }
+            synchronized(scanned) {
+                scanEpoch++
+                scanned.clear()
+            }
             snapshot = null
             refreshResult()
         }
         download(name)
     }
 
-    private fun loadWarehouses(session: com.rfidsoftwares.data.frappe.FrappeSession) {
+    private fun loadWarehouses(session: FrappeSession) {
+        val appContext = requireContext().applicationContext
         io.execute {
             try {
                 val fresh = client.fetchWarehouses(session)
                 store.saveWarehouses(fresh)
+                AuditIssues.resolve(appContext, AuditIssues.WAREHOUSES_ID)
                 ui { showWarehouses(fresh, prefer = selectedWarehouse ?: store.lastWarehouse()) }
             } catch (e: FrappeException) {
                 ui {
                     when {
                         e.kind == FrappeException.Kind.SESSION_EXPIRED -> sessionEnded()
                         // Offline with a saved list is fine; only say something when there is nothing to choose from.
-                        warehouseOptions.isEmpty() -> downloadStatus.text = "Could not load the warehouses: ${e.message}"
+                        warehouseOptions.isEmpty() ->
+                            problem(AuditIssues.WAREHOUSES_ID, IssueCategories.NETWORK, "Could not load the warehouses: ${e.message}")
                     }
                 }
             }
@@ -186,17 +195,20 @@ class PhysicalAuditFragment : BaseScreenFragment() {
     private fun download(warehouse: String) {
         val session = store.session() ?: return sessionEnded()
         val token = ++downloadToken
-        downloadStatus.text = "Downloading $warehouse..."
+        val appContext = requireContext().applicationContext
+        scanStatus.text = "Status: Loading $warehouse..."
         io.execute {
             try {
                 val fresh = client.fetchSnapshot(session, warehouse)
                 if (token != downloadToken) return@execute // another warehouse was picked meanwhile
                 store.saveSnapshot(fresh)
                 store.saveWarehouse(warehouse)
+                // What is now saved on the phone is reported on the warning page, not on this screen.
+                AuditIssues.recordCached(appContext, fresh)
                 ui {
                     if (token != downloadToken) return@ui
                     snapshot = fresh
-                    downloadStatus.text = downloadedText(fresh)
+                    scanStatus.text = "Status: Ready"
                     refreshResult()
                 }
             } catch (e: FrappeException) {
@@ -205,21 +217,19 @@ class PhysicalAuditFragment : BaseScreenFragment() {
                     if (e.kind == FrappeException.Kind.SESSION_EXPIRED) {
                         sessionEnded()
                     } else {
-                        downloadStatus.text = e.message
+                        scanStatus.text = "Status: $warehouse not loaded"
+                        problem(AuditIssues.failedId(warehouse), IssueCategories.SYNC, "Could not load $warehouse: ${e.message}")
                     }
                 }
             }
         }
     }
 
-    private fun downloadedText(s: AuditSnapshot): String =
-        "${s.warehouse}: ${s.tags.size} tags, ${s.items.size} items. Downloaded ${s.generatedAt} (server time)."
-
     // ---------------------------------------------------------------- scanning
 
     private fun startScan() {
         if (snapshot == null) {
-            scanStatus.text = "Status: Wait for the warehouse to finish loading first."
+            hint("Wait for the warehouse to finish loading first.")
             return
         }
         if (!scanning.compareAndSet(false, true)) return
@@ -234,17 +244,23 @@ class PhysicalAuditFragment : BaseScreenFragment() {
                     scanning.set(false)
                     ui {
                         scanButton.text = "Start scan"
-                        scanStatus.text = "Status: Reader init failed (${d.displayName}). Check the reader is on."
+                        scanStatus.text = "Status: Reader not ready"
+                        problem(AuditIssues.READER_ID, IssueCategories.RFID, "Reader not ready (${d.displayName}). Check that it is on.")
                     }
                     return@execute
                 }
+                AuditIssues.resolve(appContext, AuditIssues.READER_ID)
                 val soundOn = UhfConfigPrefs.load(appContext).soundEnabled
                 d.startInventory()
                 var dirty = false
                 var lastRefresh = 0L
                 while (scanning.get()) {
+                    val epoch = synchronized(scanned) { scanEpoch }
                     for (event in d.readBufferedTagEvents()) {
-                        val added = synchronized(scanned) { scanned.add(AuditCompare.normalize(event.epc)) }
+                        val added = synchronized(scanned) {
+                            // Clear scans was pressed after this read began: its tags are not part of the new count.
+                            epoch == scanEpoch && scanned.add(AuditCompare.normalize(event.epc))
+                        }
                         if (added) {
                             dirty = true
                             if (soundOn) SoundBeeper.playBeep()
@@ -264,7 +280,8 @@ class PhysicalAuditFragment : BaseScreenFragment() {
                 scanning.set(false)
                 ui {
                     scanButton.text = "Start scan"
-                    scanStatus.text = "Status: Scan error (${e.message ?: e.javaClass.simpleName})"
+                    scanStatus.text = "Status: Scan stopped"
+                    problem(AuditIssues.READER_ID, IssueCategories.RFID, "Scan error: ${e.message ?: e.javaClass.simpleName}")
                 }
             }
         }
@@ -276,8 +293,13 @@ class PhysicalAuditFragment : BaseScreenFragment() {
         scanStatus.text = "Status: Stopped. ${synchronized(scanned) { scanned.size }} tags read."
     }
 
+    /** Stops scanning, then empties the scans and the table below: the next scan is a fresh count. */
     private fun clearScans() {
-        synchronized(scanned) { scanned.clear() }
+        stopScan() // otherwise the reader would read the same tags straight back in
+        synchronized(scanned) {
+            scanEpoch++
+            scanned.clear()
+        }
         scanStatus.text = "Status: Scans cleared."
         refreshResult()
     }
@@ -287,12 +309,12 @@ class PhysicalAuditFragment : BaseScreenFragment() {
     private fun onSendClicked() {
         val snap = snapshot
         if (snap == null) {
-            scanStatus.text = "Status: Pick a warehouse first."
+            hint("Pick a warehouse first.")
             return
         }
         val seen = synchronized(scanned) { scanned.toSet() }
         if (seen.isEmpty()) {
-            scanStatus.text = "Status: Scan something first."
+            hint("Scan something first.")
             return
         }
         stopScan()
@@ -311,6 +333,7 @@ class PhysicalAuditFragment : BaseScreenFragment() {
 
     private fun send(snap: AuditSnapshot, r: AuditResult) {
         val session = store.session() ?: return sessionEnded()
+        val appContext = requireContext().applicationContext
         // The same count sent again after a failure keeps its ID, so the server cannot make two records of it.
         val draft = AuditPushBuilder.build(snap, r, clientId = "", deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}")
         val push = draft.copy(clientId = pushIds.idFor(AuditPushBuilder.fingerprint(draft)))
@@ -321,7 +344,8 @@ class PhysicalAuditFragment : BaseScreenFragment() {
             try {
                 val sent = client.pushAudit(session, push)
                 pushIds.sent()
-                // Kept on the phone so the count can be looked at again in History.
+                AuditIssues.resolve(appContext, AuditIssues.SEND_ID)
+                // Kept on the phone so the count can be looked at again in Audit History.
                 history.add(
                     HistoryEntry(sent.name, session.user, snap.warehouse, snap.generatedAt, System.currentTimeMillis(), r.items, r.unknownEpcs),
                 )
@@ -335,14 +359,19 @@ class PhysicalAuditFragment : BaseScreenFragment() {
                     scanStatus.text = if (sent.duplicate) {
                         "Status: Already sent as ${sent.name}. Scans cleared."
                     } else {
-                        "Status: Sent as ${sent.name} (draft in the ERP). Scans cleared. See Audit History on the main menu."
+                        "Status: Sent as ${sent.name}. Scans cleared."
                     }
                 }
             } catch (e: FrappeException) {
                 ui {
                     sendButton.isEnabled = true
                     sendButton.text = "Send to ERP"
-                    if (e.kind == FrappeException.Kind.SESSION_EXPIRED) sessionEnded() else scanStatus.text = "Status: Not sent. ${e.message}"
+                    if (e.kind == FrappeException.Kind.SESSION_EXPIRED) {
+                        sessionEnded()
+                    } else {
+                        scanStatus.text = "Status: Not sent"
+                        problem(AuditIssues.SEND_ID, IssueCategories.SYNC, "Not sent: ${e.message}")
+                    }
                 }
             }
         }
@@ -362,7 +391,8 @@ class PhysicalAuditFragment : BaseScreenFragment() {
         val seen = synchronized(scanned) { scanned.toSet() }
         val r = AuditCompare.compare(snap, seen)
         result = r
-        adapter.submit(r.items)
+        // Nothing scanned (fresh start, Clear scans, or after a send): the list is empty, not a table of zeros.
+        adapter.submit(if (seen.isEmpty()) emptyList() else r.items)
         summaryText.text = "Scanned ${r.scannedUnits} of ${r.expectedUnits}"
         if (r.unknownEpcs.isEmpty()) {
             unknownText.visibility = View.GONE
@@ -375,6 +405,24 @@ class PhysicalAuditFragment : BaseScreenFragment() {
     private fun showUnknown() {
         val unknown = result?.unknownEpcs ?: return
         AuditDialogs.showUnknown(requireContext(), unknown)
+    }
+
+    // ---------------------------------------------------------------- messages
+
+    /** Something went wrong: a short pop-up with a link to the warning page, where the full note is kept. */
+    private fun problem(id: String, category: String, message: String, detail: String? = null) {
+        val appContext = requireContext().applicationContext
+        io.execute { AuditIssues.recordProblem(appContext, id, category, message, detail) }
+        view?.let { v ->
+            Snackbar.make(v, message, Snackbar.LENGTH_LONG)
+                .setAction("Details") { findNavController().navigate(R.id.action_global_issueCenterFragment) }
+                .show()
+        }
+    }
+
+    /** A short instruction, not an error: a brief pop-up and nothing kept. */
+    private fun hint(message: String) {
+        view?.let { Snackbar.make(it, message, Snackbar.LENGTH_SHORT).show() }
     }
 
     /** Runs on the main thread, and only while the screen is still there. */

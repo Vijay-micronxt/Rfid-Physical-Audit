@@ -4,65 +4,52 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="@dimen/rfid_screen_padding">
+    android:paddingHorizontal="12dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
 
-    <!-- Download, scan, compare. The ERP login is the app's own login screen. -->
+    <!-- Pick, scan, compare, send. Kept tight so the item list gets the room; problems and sync notes
+         go to the warning page (the triangle in the top bar), not onto this screen. -->
     <LinearLayout
         android:id="@+id/auditPanel"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/auditUserText"
-            style="@style/TextAppearance.Rfid.HelperMetaText"
+        <!-- The ERP's warehouses; the last one used (or the busiest) is already selected. -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Logged in" />
+            android:hint="Warehouse">
 
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/auditWarehouseInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Same size, side by side -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <!-- Dropdown of the ERP's warehouses; the last one used (or the busiest) is already selected. -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="Warehouse">
-
-                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                    android:id="@+id/auditWarehouseInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none" />
-            </com.google.android.material.textfield.TextInputLayout>
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/auditDownloadStatus"
-            style="@style/TextAppearance.Rfid.HelperMetaText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Pick a warehouse: its data downloads by itself." />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/auditScanButton"
+                style="@style/Widget.Rfid.Button.Primary"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="2"
-                android:text="Start scan" />
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:maxLines="1"
+                android:text="Start scan"
+                android:textAllCaps="false"
+                android:textSize="14sp" />
 
             <View
                 android:layout_width="8dp"
@@ -70,17 +57,22 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/auditClearButton"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/Widget.Rfid.Button.Secondary"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="44dp"
                 android:layout_weight="1"
-                android:text="Clear scans" />
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:maxLines="1"
+                android:text="Clear scans"
+                android:textAllCaps="false"
+                android:textSize="14sp" />
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -90,12 +82,14 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:maxLines="2"
                 android:text="Status: Ready" />
 
             <TextView
                 android:id="@+id/auditSummary"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:text="Scanned 0 of 0"
                 android:textColor="@color/rfid_primary"
                 android:textSize="13sp"
@@ -105,20 +99,25 @@
         <!-- Sends this count to the ERP as a draft Physical Audit. It changes no stock. -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/auditSendButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.Rfid.Button.Secondary"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Send to ERP" />
+            android:layout_height="44dp"
+            android:layout_marginTop="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:maxLines="1"
+            android:text="Send to ERP"
+            android:textAllCaps="false"
+            android:textSize="14sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:background="@color/rfid_surface_variant"
             android:orientation="horizontal"
             android:paddingHorizontal="4dp"
-            android:paddingVertical="8dp">
+            android:paddingVertical="6dp">
 
             <TextView
                 android:layout_width="0dp"
@@ -169,7 +168,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackground"
-            android:padding="10dp"
+            android:padding="8dp"
             android:textColor="@color/rfid_error"
             android:textSize="13sp"
             android:textStyle="bold"
